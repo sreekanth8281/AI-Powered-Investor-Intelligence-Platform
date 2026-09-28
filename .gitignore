@@ -1,0 +1,28 @@
+# Environment variables / secrets
+.env
+.env.*
+
+# Virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated data
+*.log
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+data/raw_pdfs/

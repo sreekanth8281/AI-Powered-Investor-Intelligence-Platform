@@ -1,0 +1,14 @@
+pymupdf4llm
+langchain
+langchain-experimental
+langchain-huggingface
+sentence-transformers
+
+psycopg2-binary
+sqlalchemy
+pgvector
+
+fastapi
+uvicorn
+python-multipart
+jinja2

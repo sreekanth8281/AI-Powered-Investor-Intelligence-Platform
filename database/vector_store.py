@@ -23,8 +23,37 @@ def insert(chunks,embeddings,company,year,source_file,metadata=None):
         conn.commit()
         print(f"Inserted {len(chunks)} successfully!")
     except Exception:
-        conn.rollback
+        conn.rollback()
         raise
+
+    finally:
+        conn.close()
+
+
+def search(query_embedding,top_k=5):
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                 SELECT
+                    id,
+                    chunk,
+                    company,
+                    year,
+                    source_file,
+                    metadata,
+                    embedding <=> %s::vector AS distance
+                FROM document_chunks
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s;
+                """,
+                (query_embedding,query_embedding,top_k)
+            )
+
+            results = cursor.fetchall()
+            return results
 
     finally:
         conn.close()

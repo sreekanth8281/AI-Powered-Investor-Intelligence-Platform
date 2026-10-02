@@ -3,7 +3,7 @@ from database.vector_store import search
 
 
 
-def retrieve(query: str, top_k: int=5) :
+def retrieve(query: str, top_k: int=5):
 
     embedding_model = get_embedding_model()
 
@@ -17,7 +17,7 @@ def retrieve(query: str, top_k: int=5) :
     return results
 
 if __name__ == "__main__":
-    query = "what was Apple's revenue in 2024?"
+    query = "What were Apple's major reportable segments?"
 
     results = retrieve(query,top_k=5)
 

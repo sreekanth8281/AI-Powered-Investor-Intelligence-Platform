@@ -108,6 +108,22 @@ def get_all_chunks():
         conn.close()
 
 
+def bm25_search(query, rows, idf, avgdl, top_k= 5):
+    res = []
+
+    for chunk_id, document in rows:
+        score = bm25_score(
+            query=query,
+            document=document,
+            idf=idf,
+            avgdl=avgdl
+        )
+        res.append((chunk_id, score, document))
+
+    res.sort(key=lambda x: x[1], reverse=True)
+    return res[:top_k]
+
+
 if __name__ == "__main__":
 
     rows = get_all_chunks()
@@ -133,3 +149,24 @@ if __name__ == "__main__":
     print("Number of chunks:", len(rows))
     print("First chunk ID:", rows[0][0])
     print("First chunk:", rows[0][1][:300])
+
+
+
+    query = "What was Apple's net sales in 2024?"
+
+    results = bm25_search(
+        query=query,
+        rows=rows,
+        idf=idf,
+        avgdl=avgdl,
+        top_k=5
+    )
+
+    print("\nQuery:", query)
+    print("\nBM25 Top 5:")
+
+    for rank, (chunk_id, score, document) in enumerate(results, start=1):
+        print(f"\nRank: {rank}")
+        print("Chunk ID:", chunk_id)
+        print("BM25 Score:", score)
+        print("Chunk:", document[:500])

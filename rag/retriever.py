@@ -17,7 +17,7 @@ def retrieve(query: str, top_k: int=5):
     return results
 
 if __name__ == "__main__":
-    query = "What were Apple's major reportable segments?"
+    query = "What was Apple's net sales in 2024?"
 
     results = retrieve(query,top_k=5)
 

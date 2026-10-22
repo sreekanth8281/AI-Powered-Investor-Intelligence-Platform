@@ -29,22 +29,13 @@ if __name__ == '__main__':
     #Combine the rankings
     scores = rrf(vector_res, bm25_res)
 
-    print("\nVector search ranking")
-    for rank, result in enumerate(vector_res, start=1):
-        print(f"rank:{rank}, chunk_id: {result[0]}")
-
-    print("\nBM25 ranking")
-    for rank, result in enumerate(bm25_res, start=1):
-        print(f"rank:{rank}, chunk_id: {result[0]}")
 
 
-    print("\nRRF scores")
 
     res =  sorted(
         scores.items(),
         key=lambda x: x[1], reverse= True
     )
-    print(f"Chunk ID: {chunk_id}, Score: {score:.6f}")
 
     top_res = res[:5]
 
@@ -54,6 +45,26 @@ if __name__ == '__main__':
     ]
 
     chunks = get_chunk_by_ids(chunk_ids)
+
+    chunks_by_id = {
+        row[0]: row 
+        for row in chunks
+    }
+
+    for chunk_id, scores in res:
+        row = chunks_by_id.get(chunk_id)
+
+        if row is None:
+            continue
+
+        print("Chunk ID:", row[0])
+        print("RRF Score:", scores)
+        print("Company:", row[2])
+        print("Year:", row[3])
+        print("Source:", row[4])
+        print("Chunk Text:")
+        print(row[1])
+        print("-" * 80)
 
 
 

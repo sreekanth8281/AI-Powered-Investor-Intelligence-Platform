@@ -80,6 +80,7 @@ def get_chunk_by_ids(chunk_ids):
             FROM document_chunks
             WHERE id = ANY(%s)
             """,
+            (chunk_ids,)
             )
 
             return cursor.fetchall()

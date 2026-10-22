@@ -57,4 +57,33 @@ def search(query_embedding,top_k=5):
 
     finally:
         conn.close()
+
+
+
+def get_chunk_by_ids(chunk_ids):
+    if not chunk_ids:
+        return []
+
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT 
+                id,
+                chunk,
+                company,
+                year,
+                source_file,
+                metadata
+            FROM document_chunks
+            WHERE id = ANY(%s)
+            """,
+            )
+
+            return cursor.fetchall()
+
+    finally:
+        conn.close()
     

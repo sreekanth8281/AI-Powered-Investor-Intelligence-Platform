@@ -1,5 +1,6 @@
 from rag.retriever import retrieve
 from rag.bm25 import BM25
+from database.vector_store import get_chunk_by_ids
 
 
 
@@ -39,11 +40,20 @@ if __name__ == '__main__':
 
     print("\nRRF scores")
 
-    for chunk_id, score in sorted(
+    res =  sorted(
         scores.items(),
         key=lambda x: x[1], reverse= True
-    ):
-        print(f"Chunk ID: {chunk_id}, Score: {score:.6f}")
+    )
+    print(f"Chunk ID: {chunk_id}, Score: {score:.6f}")
+
+    top_res = res[:5]
+
+    chunk_ids = [
+        chunk_id for chunk_id, scores
+        in top_res
+    ]
+
+    chunks = get_chunk_by_ids(chunk_ids)
 
 
 

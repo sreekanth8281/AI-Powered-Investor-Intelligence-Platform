@@ -14,7 +14,7 @@ def get_embedding_model() -> HuggingFaceEmbeddings:
     """
 
     model_name  = os.getenv(
-        "EMBEDDING-MODEL",
+        "EMBEDDING_MODEL",
         "sentence-transformers/all-MiniLM-L6-v2"
     )
 

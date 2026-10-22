@@ -17,14 +17,15 @@ def retrieve(query: str, top_k: int=5):
     return results
 
 if __name__ == "__main__":
-    query = "What was Apple's net sales in 2024?"
+    query = "What were Apple's operating expenses in 2024?"
 
     results = retrieve(query,top_k=5)
 
-    print(f"\nQuery:{query}")
+    print(f"\nQuery: {query}")
     print(f"Retrieved {len(results)} chunks\n")
 
-    for result in results:
+    for rank, result in enumerate(results, start=1):
+        print(f"Rank: {rank}")
         print("ID:", result[0])
         print("Chunk:", result[1][:500])
         print("Company:", result[2])

@@ -18,7 +18,7 @@ def rrf(vector_res, bm25_res, k=60):
     return scores
 
 if __name__ == '__main__':
-    query = "What was Apple's net sales in 2024?"
+    query = "What were Apple's operating expenses in 2024?"
 
     vector_res = retrieve(query, top_k=5)
 
@@ -28,6 +28,15 @@ if __name__ == '__main__':
 
     #Combine the rankings
     scores = rrf(vector_res, bm25_res)
+    print("\n--- VECTOR RESULTS ---")
+
+    for rank, row in enumerate(vector_res, start=1):
+        print(f"Rank: {rank}, Chunk ID: {row[0]}")
+
+    print("\n--- BM25 RESULTS ---")
+
+    for rank, row in enumerate(bm25_res, start=1):
+        print(f"Rank: {rank}, Chunk ID: {row[0]}")
 
 
 
@@ -40,8 +49,7 @@ if __name__ == '__main__':
     top_res = res[:5]
 
     chunk_ids = [
-        chunk_id for chunk_id, scores
-        in top_res
+        chunk_id for chunk_id, score in top_res
     ]
 
     chunks = get_chunk_by_ids(chunk_ids)
@@ -51,20 +59,22 @@ if __name__ == '__main__':
         for row in chunks
     }
 
-    for chunk_id, scores in res:
+    for chunk_id, score in top_res:
         row = chunks_by_id.get(chunk_id)
 
         if row is None:
             continue
 
-        print("Chunk ID:", row[0])
-        print("RRF Score:", scores)
-        print("Company:", row[2])
-        print("Year:", row[3])
-        print("Source:", row[4])
-        print("Chunk Text:")
-        print(row[1])
-        print("-" * 80)
+    #print(query)
+    #print("*"*80)
+    #print("Chunk ID:", row[0])
+    #print("RRF Score:", score)
+    #print("Company:", row[2])
+    #print("Year:", row[3])
+    #print("Source:", row[4])
+    #print("Chunk Text:")
+    #print(row[1])
+    #print("*" * 80)
 
 
 

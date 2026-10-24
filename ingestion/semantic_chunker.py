@@ -70,16 +70,40 @@ if __name__ == "__main__":
     print(f"average chunk {sum(chunk_lengths) / len(chunk_lengths):.0f} characters")
 
 
-    for i in [24, 46]:
+    print("Maximum sequence length:", embeddings._client.max_seq_length)
+
+    largest_chunk_id, largest_chunk = max(
+    enumerate(chunks),
+    key=lambda item: len(item[1].page_content)
+)
+
+    print("Largest chunk ID:", largest_chunk_id)
+    print("Character count:", len(largest_chunk.page_content))
+    print("Beginning:", largest_chunk.page_content[:500])
+    print("Ending:", largest_chunk.page_content[-500:])
+
+
+    model = embeddings._client
+    max_length = model.max_seq_length
+
+    print(f"max seq length:", max_length)
+
+    for i in [24,46,64]:
         if i < len(chunks):
-            chunk = chunks[i].page_content
+            text = chunks[i].page_content
 
-            print(f"\n{'=' * 70}")
-            print(f"CHUNK {i}")
-            print(f"Length: {len(chunk)} characters")
-            print(f"{'=' * 70}")
+            token_ids = model.tokenizer(
+                text,
+                add_special_tokens=True,
+                truncation=False
+            )["input_ids"]
 
-            print(chunk)
+            print(f"\nchunk {i}")
+            print(f"characters: {len(text)}")
+            print(f"token_count: {len(token_ids)}")
+            print("Exceeds limit:", len(token_ids) > max_length)
+
+
 
 
 

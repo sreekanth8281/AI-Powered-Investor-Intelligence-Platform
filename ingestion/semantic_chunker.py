@@ -50,7 +50,7 @@ if __name__ == "__main__":
     import os
     embeddings = get_embedding_model()
 
-    markdown_file = "data/markdown/apple_report_2024.md"
+    markdown_file = "data/markdown/apple_report_2024_fixed.md"
     
     chunks = chunk_markdown(
         markdown_file = markdown_file,
@@ -58,5 +58,30 @@ if __name__ == "__main__":
     )
 
     print(f"Created {len(chunks)} chunks")
+
+
+    chunk_lengths = [
+        len(chunk.page_content)
+        for chunk in chunks
+    ]
+
+    print(f"smallest chunk {min(chunk_lengths)} characters")
+    print(f"largest chunk {max(chunk_lengths)} characters")
+    print(f"average chunk {sum(chunk_lengths) / len(chunk_lengths):.0f} characters")
+
+
+    for i in [24, 46]:
+        if i < len(chunks):
+            chunk = chunks[i].page_content
+
+            print(f"\n{'=' * 70}")
+            print(f"CHUNK {i}")
+            print(f"Length: {len(chunk)} characters")
+            print(f"{'=' * 70}")
+
+            print(chunk)
+
+
+
 
    

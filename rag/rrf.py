@@ -30,14 +30,18 @@ if __name__ == '__main__':
     scores = rrf(vector_res, bm25_res)
     print("\n--- VECTOR RESULTS ---")
 
-    for rank, row in enumerate(vector_res, start=1):
-        print(f"Rank: {rank}, Chunk ID: {row[0]}")
+    for rank, res in enumerate(vector_res, start=1):
+        print(f"\nRank: {rank}")
+        print(f"Chunk ID: {res[0]}")
+        print(f"Text: {res[1][:500]}")
+
 
     print("\n--- BM25 RESULTS ---")
 
-    for rank, row in enumerate(bm25_res, start=1):
-        print(f"Rank: {rank}, Chunk ID: {row[0]}")
-
+    for rank, result in enumerate(bm25_res, start=1): 
+        print(f"\nRank: {rank}") 
+        print(f"Result type: {type(result)}") 
+        print(f"Result value: {result}")
 
 
 
@@ -45,6 +49,15 @@ if __name__ == '__main__':
         scores.items(),
         key=lambda x: x[1], reverse= True
     )
+
+    print("\n--- RRF RANKINGS ---")
+    
+    for rank, (chunk_id, score) in enumerate(res, start=1):
+        print(
+            f"Rank: {rank} | "
+            f"Chunk ID: {chunk_id} | "
+            f"RRF Score: {score:.6f}"
+        )
 
     top_res = res[:5]
 
@@ -65,16 +78,16 @@ if __name__ == '__main__':
         if row is None:
             continue
 
-    #print(query)
-    #print("*"*80)
-    #print("Chunk ID:", row[0])
-    #print("RRF Score:", score)
-    #print("Company:", row[2])
-    #print("Year:", row[3])
-    #print("Source:", row[4])
-    #print("Chunk Text:")
-    #print(row[1])
-    #print("*" * 80)
+        print(query)
+        print("*"*80)
+        print("Chunk ID:", row[0])
+        print("RRF Score:", score)
+        print("Company:", row[2])
+        print("Year:", row[3])
+        print("Source:", row[4])
+        print("Chunk Text:")
+        print(row[1])
+        print("*" * 80)
 
 
 

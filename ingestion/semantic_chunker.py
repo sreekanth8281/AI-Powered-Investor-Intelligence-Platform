@@ -92,6 +92,11 @@ def chunk_markdown(
     print(f"Largest chunk tokens: {max(token_counts)}")
     print(f"Average chunk tokens: {round(sum(token_counts) / len(token_counts))}")
 
+    for i, (chunk, count) in enumerate(zip(final_chunks, token_counts)):
+        if count < 20:
+            print(f"\nShort chunk {i}: {count} tokens")
+            print(repr(chunk.page_content))
+
 
     oversized = [i for i, count in enumerate(token_counts)
                  if count > max_tokens]

@@ -2,10 +2,29 @@ from database.database import get_connection
 from psycopg2.extras import Json
 
 def insert(chunks,embeddings,company,year,source_file,metadata=None):
+    if len(chunks) != len(embeddings):
+        raise ValueError(
+            f"Mismatch: {len(chunks)} chunks but"
+            f"{len(embeddings)} embeddings."
+        )
     conn = get_connection()
 
     try:
         with conn.cursor() as cursor:
+
+            #Remove previous ingestion of this exact document.
+            cursor.execute(
+                """
+                DELETE from document_chunks
+                WHERE company = %s
+                AND year = %s
+                AND source_file = %s
+                """,
+                (company, year, source_file)
+            )
+
+            deleted_count = cursor.rowcount
+            print(f"Removed {deleted_count} old chunks.")
 
             for chunk, embedding in zip(chunks, embeddings):
                 cursor.execute(

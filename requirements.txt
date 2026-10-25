@@ -3,6 +3,7 @@ langchain
 langchain-experimental
 langchain-huggingface
 sentence-transformers
+langchain-text-splitters
 
 psycopg2-binary
 sqlalchemy

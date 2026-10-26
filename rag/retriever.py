@@ -2,6 +2,8 @@ from ingestion.embeddings import get_embedding_model
 from database.vector_store import search, get_chunk_by_ids
 from database.database import get_connection
 
+from sklearn.metrics.pairwise import cosine_similarity
+
 
 def retrieve(query: str, top_k: int = 10):
     embedding_model = get_embedding_model()
@@ -70,4 +72,26 @@ if __name__ == "__main__":
 
     finally:
         conn.close()
+
+    if chunk_307:
+         chunk_text = chunk_307[0][1]
+
+         fresh_embedding = embedding_model.embed_documents(
+            [chunk_text]
+         )[0]
+
+         similarity = cosine_similarity(
+            [query_embedding],
+            [fresh_embedding]
+         )[0][0]
+
+         print("\n--- Fresh Embedding Diagnostic ---") 
+         print("Query dimensions:", len(query_embedding)) 
+         print("Chunk dimensions:", len(fresh_embedding)) 
+         print("Fresh cosine similarity:", similarity) 
+         print("Stored chunk distance:", chunk_distance[1])
+
+         
+
+    
 

@@ -141,5 +141,16 @@ class BM25:
 
 
 if __name__ == "__main__":
-    pass
+    bm25 = BM25() 
+    print("Total chunks loaded:", len(bm25.rows)) 
+    print("Average document length:", bm25.avgdl) 
+    print("Unique terms in index:", len(bm25.idf)) 
+    query = "What were Apple's operating expenses in 2024?" 
+    results = bm25.search(query, top_k=5) 
+    print("\nBM25 Search Results:") 
+    for rank, (chunk_id, score, document) in enumerate(results, start=1): 
+        print(f"\nRank: {rank}") 
+        print(f"Chunk ID: {chunk_id}") 
+        print(f"BM25 Score: {score:.4f}") 
+        print(f"Chunk Preview: {document[:500]}")
 

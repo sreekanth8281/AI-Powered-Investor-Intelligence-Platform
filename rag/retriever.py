@@ -21,77 +21,40 @@ def retrieve(query: str, top_k: int = 10):
 
 
 if __name__ == "__main__":
-    query = "What were Apple's operating expenses in 2024?"
 
-    # Generate the query embedding
-    embedding_model = get_embedding_model()
-    query_embedding = embedding_model.embed_query(query)
+    queries = [
+        "What were Apple's operating expenses in 2024?",
+        "Total operating expenses",
+        "Research and development selling general and administrative total operating expenses"
+    ]
 
-    # Run vector retrieval
-    results = search(
-        query_embedding=query_embedding,
-        top_k=10
-    )
+    for query in queries:
+        results = retrieve(query, top_k=10)
 
-    print(f"\nQuery: {query}")
-    print(f"Retrieved {len(results)} chunks\n")
+        print("\n" + "=" * 70)
+        print(f"Query: {query}")
+        print("=" * 70)
 
-    for rank, result in enumerate(results, start=1):
-        print(f"Rank: {rank}")
-        print("ID:", result[0])
-        print("Chunk:", result[1][:500])
-        print("Company:", result[2])
-        print("Year:", result[3])
-        print("Distance:", result[-1])
-        print("-" * 80)
-
-    # Check whether the known relevant chunk exists
-    chunk_307 = get_chunk_by_ids([307])
-    print("\nCorrect chunk exists:", bool(chunk_307))
-
-    # Calculate the distance between the query and chunk 307
-    conn = get_connection()
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                    id,
-                    embedding <=> %s::vector AS distance
-                FROM document_chunks
-                WHERE id = %s;
-                """,
-                (query_embedding, 307)
+        for rank, result in enumerate(results, start=1):
+            print(
+                f"Rank: {rank} | "
+                f"ID: {result[0]} | "
+                f"Distance: {result[-1]:.4f}"
             )
 
-            chunk_distance = cursor.fetchone()
+        target = next(
+            (result for result in results if result[0] == 307),
+            None
+        )
 
-            print("\nRelevant chunk distance:")
-            print(chunk_distance)
-
-    finally:
-        conn.close()
-
-    if chunk_307:
-         chunk_text = chunk_307[0][1]
-
-         fresh_embedding = embedding_model.embed_documents(
-            [chunk_text]
-         )[0]
-
-         similarity = cosine_similarity(
-            [query_embedding],
-            [fresh_embedding]
-         )[0][0]
-
-         print("\n--- Fresh Embedding Diagnostic ---") 
-         print("Query dimensions:", len(query_embedding)) 
-         print("Chunk dimensions:", len(fresh_embedding)) 
-         print("Fresh cosine similarity:", similarity) 
-         print("Stored chunk distance:", chunk_distance[1])
-
-         
-
+        if target:
+            rank = next(
+                i for i, result in enumerate(results, start=1)
+                if result[0] == 307
+            )
+            print(f"\nChunk 307 rank: {rank}")
+            print(f"Chunk 307 distance: {target[-1]:.4f}")
+        else:
+            print("\nChunk 307 is not in the top 10.")
     
 

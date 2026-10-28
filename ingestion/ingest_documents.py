@@ -63,13 +63,7 @@ print("ingest_documents.py started")
 
 if __name__ == "__main__":
     ingest_document(
-        pdf_file="data/raw_pdfs/apple_report_2024_fixed.pdf",
-        company="Apple",
+        pdf_file="data/raw_pdfs/microsoft_report_2024_fixed.pdf",
+        company="Microsoft",
         year=2024
     )
-
-
-
-     
-
-

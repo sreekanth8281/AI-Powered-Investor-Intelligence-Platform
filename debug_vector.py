@@ -1,62 +1,73 @@
+import numpy as np
+
 from ingestion.embeddings import get_embedding_model
-from database.vector_store import get_connection
+from database.database import get_connection
 
-embedding_model = get_embedding_model()
-conn = get_connection()
 
-try:
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT id, chunk, embedding
-            FROM document_chunks
-            WHERE id = %s;
-            """,
-            (307,)
-        )
-        row = cursor.fetchone()
+QUERIES = [
+    "What was Microsoft's revenue in fiscal year 2024?",
+    "What was Microsoft's operating income in fiscal year 2024?",
+    "What were Microsoft's major business segments in fiscal year 2024?",
+]
 
-    if row is None:
-        print("ERROR: Chunk 307 was not found.")
 
-    else:
-        chunk_id, chunk_text, stored_embedding = row
+def main():
+    model = get_embedding_model()
 
-        # Convert PostgreSQL Vector to a Python list
-        stored_embedding = stored_embedding.to_list()
+    conn = get_connection()
 
-        # Generate a fresh embedding for the same text
-        fresh_embedding = embedding_model.embed_documents(
-            [chunk_text]
-        )[0]
+    try:
+        for query in QUERIES:
+            print("\n" + "=" * 80)
+            print("QUERY:", query)
+            print("=" * 80)
 
-        print("Chunk ID:", chunk_id)
-        print("Text preview:", chunk_text[:300])
-        print("Stored dimensions:", len(stored_embedding))
-        print("Fresh dimensions:", len(fresh_embedding))
+            query_embedding = np.asarray(
+                model.embed_query(query),
+                dtype=np.float32,
+            )
 
-        # Calculate cosine similarity
-        dot_product = sum(
-            a * b
-            for a, b in zip(stored_embedding, fresh_embedding)
-        )
+            # Retrieve the top 10 Microsoft chunks using PostgreSQL.
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        id,
+                        chunk,
+                        embedding <=> %s::vector AS distance
+                    FROM document_chunks
+                    WHERE company ILIKE %s
+                      AND year = %s
+                      AND source_file = %s
+                      AND embedding IS NOT NULL
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT 10
+                    """,
+                    (
+                        query_embedding.tolist(),
+                        "%Microsoft%",
+                        2024,
+                        "microsoft_report_2024_fixed.pdf",
+                        query_embedding.tolist(),
+                    ),
+                )
 
-        stored_norm = sum(
-            a * a for a in stored_embedding
-        ) ** 0.5
+                results = cursor.fetchall()
 
-        fresh_norm = sum(
-            a * a for a in fresh_embedding
-        ) ** 0.5
+            for rank, (chunk_id, chunk, distance) in enumerate(
+                results, start=1
+            ):
+                similarity = 1.0 - float(distance)
 
-        cosine_similarity = dot_product / (
-            stored_norm * fresh_norm
-        )
+                print(f"\nRank: {rank}")
+                print(f"Chunk ID: {chunk_id}")
+                print(f"Cosine distance: {float(distance):.6f}")
+                print(f"Cosine similarity: {similarity:.6f}")
+                print(f"Chunk preview: {chunk[:250]!r}")
 
-        print(
-            "Stored vs fresh cosine similarity:",
-            round(cosine_similarity, 6)
-        )
+    finally:
+        conn.close()
 
-finally:
-    conn.close()
+
+if __name__ == "__main__":
+    main()

@@ -1,503 +1,210 @@
-# 📊 AI-Powered Investor Intelligence Platform
+# AI-Powered Investor Intelligence Platform
 
-An AI-powered financial document intelligence platform that allows users to upload company reports and ask natural-language questions about them.
+A retrieval-augmented generation (RAG) backend for question answering over company financial reports. Annual reports are converted to Markdown, chunked, embedded, and stored in PostgreSQL with pgvector. At query time, the system runs semantic and lexical retrieval in parallel, fuses the rankings with Reciprocal Rank Fusion (RRF), and passes the top chunks to an LLM to produce a grounded answer.
 
-The system uses **Retrieval-Augmented Generation (RAG)** with **semantic vector search + BM25 lexical search + Reciprocal Rank Fusion (RRF)** to retrieve relevant information before generating grounded answers with an LLM.
+## Table of Contents
 
----
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Design Notes](#design-notes)
+- [Known Limitations](#known-limitations)
+- [Roadmap](#roadmap)
+- [Author](#author)
 
-## 🚀 Features
+## Overview
 
-* 📄 Upload and process financial documents such as annual reports
-* 🔄 Convert PDF documents into structured Markdown
-* ✂️ Semantic document chunking
-* 🧠 Generate vector embeddings using Hugging Face Sentence Transformers
-* 🔎 **Hybrid Retrieval**
+Financial reports mix narrative prose with dense numeric tables, so neither pure semantic search nor pure keyword search is sufficient on its own. This project combines both:
 
-  * Semantic/vector search using PostgreSQL + pgvector
-  * Lexical retrieval using BM25
-  * Reciprocal Rank Fusion (RRF) to combine rankings
-* 🤖 LLM-powered question answering
-* 📚 Context-aware responses based on retrieved document chunks
-* 🏢 Company and year metadata filtering
-* 🐘 PostgreSQL database with `pgvector`
-* ⚡ FastAPI backend
-* 🐳 Docker-ready architecture
+- **Semantic search** (pgvector) captures meaning when the query wording differs from the document.
+- **BM25** captures exact terms such as line items ("operating income"), segment names, and fiscal years.
+- **RRF** merges the two ranked lists without needing to calibrate their different score scales.
 
----
+Retrieved chunks are then supplied to an LLM so that answers are based on the source document rather than on the model's prior knowledge.
 
-## 🏗️ System Architecture
+## Key Features
 
-```text
-                 ┌─────────────────────┐
-                 │      User Query     │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │   FastAPI Backend   │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-              ┌───────────────────────────┐
-              │     Hybrid Retrieval      │
-              └─────────────┬─────────────┘
-                            │
-               ┌────────────┴────────────┐
-               ▼                         ▼
-      ┌─────────────────┐       ┌─────────────────┐
-      │ Vector Search   │       │   BM25 Search   │
-      │   pgvector      │       │ Lexical Search  │
-      └────────┬────────┘       └────────┬────────┘
-               │                         │
-               └────────────┬────────────┘
-                            ▼
-                 ┌─────────────────────┐
-                 │        RRF          │
-                 │ Rank Fusion         │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │ Retrieved Context   │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │       LLM           │
-                 │   Answer Generation │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │   Final Response    │
-                 └─────────────────────┘
+- PDF-to-Markdown conversion of annual reports using PyMuPDF4LLM
+- Semantic chunking with a token cap aligned to the embedding model's sequence limit
+- 384-dimensional embeddings from `sentence-transformers/all-MiniLM-L6-v2`
+- Vector storage and cosine-distance search in PostgreSQL with pgvector
+- BM25 lexical retrieval
+- Reciprocal Rank Fusion of vector and BM25 results
+- Company, fiscal year, and source-file metadata on every chunk
+- Idempotent ingestion: previous rows for the same company, year, and source file are replaced on re-ingest, and exact duplicate chunks within a batch are skipped
+- FastAPI service layer with interactive API documentation
+
+## Architecture
+
+### Query path
+
+```mermaid
+flowchart TD
+    A[User query] --> B[FastAPI]
+    B --> C[Hybrid retrieval]
+    C --> D[Vector search<br/>pgvector, cosine distance]
+    C --> E[BM25<br/>lexical search]
+    D --> F[Reciprocal Rank Fusion]
+    E --> F
+    F --> G[Top-k context chunks]
+    G --> H[LLM]
+    H --> I[Grounded answer]
 ```
 
----
+### Ingestion path
 
-## 📥 Document Ingestion Pipeline
-
-When a financial report is uploaded, it goes through the following pipeline:
-
-```text
-PDF
- │
- ▼
-PyMuPDF4LLM
- │
- ▼
-Markdown
- │
- ▼
-Semantic Chunking
- │
- ▼
-Sentence Transformer
- │
- ▼
-Embeddings
- │
- ▼
-PostgreSQL + pgvector
+```mermaid
+flowchart LR
+    A[PDF] --> B[PyMuPDF4LLM]
+    B --> C[Markdown]
+    C --> D[Semantic chunking]
+    D --> E[Sentence Transformer<br/>384-d embeddings]
+    E --> F[(PostgreSQL + pgvector)]
 ```
 
-Each chunk is stored along with metadata such as:
+Each stored row in `document_chunks` contains:
 
-* Company
-* Year
-* Source file
-* Chunk content
-* Embedding vector
-* Additional metadata
+| Column        | Description                          |
+|---------------|--------------------------------------|
+| `id`          | Primary key                          |
+| `chunk`       | Chunk text                           |
+| `embedding`   | 384-dimensional pgvector embedding   |
+| `company`     | Company name                         |
+| `year`        | Fiscal year                          |
+| `source_file` | Originating PDF                      |
+| `metadata`    | Additional JSON metadata             |
 
----
+## Tech Stack
 
-## 🔎 Hybrid Retrieval
+| Area                | Technologies                                              |
+|---------------------|-----------------------------------------------------------|
+| Backend             | Python, FastAPI, Uvicorn                                  |
+| Database            | PostgreSQL, pgvector, SQLAlchemy, psycopg2                |
+| Retrieval / NLP     | Sentence Transformers, Hugging Face, BM25, RRF, LangChain |
+| Document processing | PyMuPDF4LLM, Markdown                                     |
+| Infrastructure      | Docker, environment-based configuration, Git              |
 
-The platform combines two different retrieval techniques.
-
-### 1. Semantic Search
-
-The user's query is converted into an embedding using a Sentence Transformer.
-
-The system then searches PostgreSQL using `pgvector` to find semantically similar document chunks.
-
-```text
-Query
-  ↓
-Embedding
-  ↓
-pgvector similarity search
-  ↓
-Top-K semantic results
-```
-
-This helps retrieve information even when the query uses different wording from the document.
-
-### 2. BM25 Lexical Search
-
-BM25 retrieves documents based on the actual words appearing in the query and documents.
-
-It is useful for exact terms such as:
-
-```text
-"iPhone"
-"revenue"
-"operating income"
-"Tesla Model 3"
-"2024"
-```
-
-### 3. Reciprocal Rank Fusion
-
-The semantic and BM25 results are combined using **Reciprocal Rank Fusion (RRF)**.
-
-Conceptually:
-
-```text
-Vector Results ─────┐
-                    ├──► RRF ──► Final Ranked Results
-BM25 Results ───────┘
-```
-
-This allows the system to benefit from both:
-
-* Semantic similarity
-* Exact keyword matching
-
----
-
-## 🤖 Retrieval-Augmented Generation
-
-Instead of sending the entire document to the LLM, the system retrieves only the most relevant chunks.
-
-```text
-User Question
-      │
-      ▼
-Hybrid Retrieval
-      │
-      ▼
-Relevant Chunks
-      │
-      ▼
-Context + Question
-      │
-      ▼
-LLM
-      │
-      ▼
-Grounded Answer
-```
-
-This reduces unnecessary context and helps the model answer questions using information retrieved from the uploaded documents.
-
----
-
-## 🛠️ Tech Stack
-
-### Backend
-
-* Python
-* FastAPI
-* Uvicorn
-
-### Database
-
-* PostgreSQL
-* pgvector
-* SQLAlchemy
-* psycopg2
-
-### AI / NLP
-
-* Sentence Transformers
-* Hugging Face
-* LangChain
-* Semantic Chunking
-* BM25
-* RAG
-* LLM API
-
-### Document Processing
-
-* PyMuPDF4LLM
-* Markdown
-
-### Infrastructure
-
-* Docker
-* Environment variables
-* Git & GitHub
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```text
 AI-POWERED-INVESTOR-INTELLIGENCE-PLATFORM/
-│
-├── data/
-│   ├── markdown/
-│   └── pdf/
-│
+├── app/                # FastAPI application
 ├── database/
-│   └── database.py
-│
+│   └── database.py     # Connection, schema, insertion
+├── ingestion/          # PDF -> Markdown -> chunks -> embeddings
 ├── rag/
-│   ├── embeddings.py
-│   ├── retriever.py
-│   ├── bm25.py
-│   └── ...
-│
-├── ingestion/
-│   └── ...
-│
-├── app/
-│   └── ...
-│
+│   ├── embeddings.py   # Embedding generation
+│   ├── retriever.py    # Vector search and hybrid retrieval
+│   └── bm25.py         # BM25 retrieval
+├── data/
+│   ├── pdf/            # Source reports
+│   └── markdown/       # Converted reports
 ├── requirements.txt
-├── .env
-├── .gitignore
 ├── Dockerfile
 └── README.md
 ```
 
-> The exact folder structure may change as the project evolves.
+The layout may change as the project evolves.
 
----
+## Getting Started
 
-## ⚙️ Installation
+### Prerequisites
 
-### 1. Clone the repository
+- Python 3.10+
+- PostgreSQL with the `pgvector` extension available
+- An API key for the LLM provider used for answer generation
+
+### Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/AI-POWERED-INVESTOR-INTELLIGENCE-PLATFORM.git
-
+git clone https://github.com/<your-username>/AI-POWERED-INVESTOR-INTELLIGENCE-PLATFORM.git
 cd AI-POWERED-INVESTOR-INTELLIGENCE-PLATFORM
-```
 
-### 2. Create a virtual environment
-
-Using `uv`:
-
-```bash
 uv venv
-```
-
-Activate it on Windows:
-
-```bash
+# Windows
 .venv\Scripts\activate
-```
+# macOS / Linux
+source .venv/bin/activate
 
-### 3. Install dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
----
-
-## 🔐 Environment Variables
-
-Create a `.env` file in the project root:
-
-```env
-DATABASE_URL=postgresql://username:password@localhost:5432/database_name
-
-LLM_API_KEY=your_api_key
-
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-
-EMBEDDING_DEVICE=cpu
-```
-
-Never commit your `.env` file to GitHub.
-
----
-
-## 🐘 PostgreSQL Setup
-
-Install PostgreSQL and enable the `pgvector` extension.
-
-Example:
+### Database setup
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-The application stores document chunks and their embeddings in PostgreSQL.
+The application stores chunks in the `document_chunks` table described above, using a `vector(384)` column for embeddings.
 
-Example structure:
-
-```text
-document_chunks
-├── id
-├── chunk
-├── embedding
-├── company
-├── year
-├── source_file
-└── metadata
-```
-
-The current embedding model produces **384-dimensional embeddings**.
-
----
-
-## ▶️ Running the Application
-
-Start the FastAPI server:
+### Run the API
 
 ```bash
 uvicorn main:app --reload
 ```
 
-The API will be available at:
+- API: http://127.0.0.1:8000
+- Interactive docs: http://127.0.0.1:8000/docs
 
-```text
-http://127.0.0.1:8000
+## Configuration
+
+Create a `.env` file in the project root. Never commit it to version control.
+
+```env
+DATABASE_URL=postgresql://username:password@localhost:5432/database_name
+LLM_API_KEY=your_api_key
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_DEVICE=cpu
 ```
 
-FastAPI interactive documentation:
+## Usage
+
+After ingesting a report, ask a question scoped by company and year:
 
 ```text
-http://127.0.0.1:8000/docs
+What was Microsoft's operating income in fiscal year 2024?
 ```
 
----
+The system embeds the query, runs vector search and BM25 over the matching company and year, fuses the two rankings with RRF, and sends the top chunks plus the question to the LLM.
 
-## 🧪 Example Query
+## Design Notes
 
-After ingesting financial reports, users can ask questions such as:
+**Why RRF.** Cosine distances and BM25 scores are on unrelated scales. RRF uses only rank positions, so the two lists can be combined without score normalization. A chunk found by both retrievers is favored over a chunk found by only one.
 
-```text
-What was Apple's revenue in 2024?
-```
+**Chunk size.** `all-MiniLM-L6-v2` truncates input beyond 256 tokens, so chunk sizes are capped below that limit to avoid silently losing content at embedding time.
 
-The system performs:
+**Cosine distance.** pgvector's `<=>` operator returns cosine distance (lower is closer). Similarity is `1 - distance`.
 
-```text
-Question
-   ↓
-Query preprocessing
-   ↓
-Embedding generation
-   ↓
-Vector search
-   +
-BM25 search
-   ↓
-RRF ranking
-   ↓
-Top relevant chunks
-   ↓
-LLM
-   ↓
-Answer
-```
+## Known Limitations
 
-Example:
+- **Tables in prose-oriented embeddings.** Numeric financial tables can embed poorly against natural-language questions, so exact figures may rank lower in vector search than narrative passages that mention the same terms. This is under active investigation, with retrieval diagnostics being run against Apple and Microsoft FY2024 reports.
+- **Ingestion deduplication.** Duplicate chunk text is currently removed per ingestion batch, which may also collapse legitimately repeated text such as table headers.
+- **No document upload endpoint yet.** Reports are ingested through the ingestion pipeline rather than a public upload API.
+- **No evaluation harness yet.** Retrieval quality is not yet measured against a labeled question set.
 
-```text
-User:
-What was Apple's revenue in 2024?
+## Roadmap
 
-System:
-1. Searches the vector database
-2. Performs BM25 retrieval
-3. Combines results using RRF
-4. Retrieves relevant Apple 2024 report chunks
-5. Sends the context to the LLM
-6. Generates the final answer
-```
+- [ ] Retrieval evaluation set and metrics (hit rate / MRR on financial questions)
+- [ ] Improved table-aware chunking for financial statements
+- [ ] Cross-encoder reranking
+- [ ] Document upload API
+- [ ] Citation-aware responses with source chunk references
+- [ ] Financial metric extraction
+- [ ] Company-to-company comparison
+- [ ] Authentication and user management
+- [ ] Conversation history and streaming responses
+- [ ] Docker Compose setup
+- [ ] Automated tests and CI/CD
+- [ ] Cloud deployment, monitoring, and logging
 
----
-
-## 🎯 Why Hybrid Search?
-
-Pure vector search can miss exact terminology.
-
-Pure keyword search can miss semantically related information.
-
-Hybrid retrieval combines both approaches:
-
-```text
-                 Hybrid Search
-                      │
-          ┌───────────┴───────────┐
-          ▼                       ▼
-   Semantic Search           BM25 Search
-          │                       │
-          └───────────┬───────────┘
-                      ▼
-                     RRF
-                      │
-                      ▼
-              Better Retrieval
-```
-
-This is particularly useful for financial documents where both **meaning** and **exact terminology** matter.
-
----
-
-## 📈 Current Capabilities
-
-* PDF → Markdown conversion
-* Semantic document chunking
-* Embedding generation
-* PostgreSQL vector storage
-* Vector similarity search
-* BM25 lexical retrieval
-* Hybrid retrieval
-* Reciprocal Rank Fusion
-* RAG-based question answering
-
----
-
-## 🔮 Future Improvements
-
-* [ ] Add authentication and user management
-* [ ] Add document upload API
-* [ ] Add company comparison
-* [ ] Add financial metric extraction
-* [ ] Add citation-aware responses
-* [ ] Add reranking using a cross-encoder
-* [ ] Add conversation history
-* [ ] Add streaming LLM responses
-* [ ] Add Docker Compose
-* [ ] Add automated tests
-* [ ] Add CI/CD pipeline
-* [ ] Deploy the application to the cloud
-* [ ] Add monitoring and logging
-
----
-
-## 🧠 Key Concepts Demonstrated
-
-This project demonstrates practical implementation of:
-
-* Retrieval-Augmented Generation (RAG)
-* Vector databases
-* Embeddings
-* Semantic search
-* Lexical retrieval
-* BM25
-* Reciprocal Rank Fusion
-* PostgreSQL + pgvector
-* FastAPI
-* Document processing
-* LLM integration
-* Hybrid information retrieval
-
----
-
-## 👨‍💻 Author
+## Author
 
 **Sreekanth**
+B.Tech, Computer Science Engineering
 
-B.Tech Computer Science Engineering
-
-Built as a practical project to explore **RAG systems, information ret**
+Built as a practical project exploring RAG systems, information retrieval, and production-style AI backends.

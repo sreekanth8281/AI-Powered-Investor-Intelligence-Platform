@@ -1,6 +1,23 @@
 from ingestion.embeddings import get_embedding_model
 from database.database import get_connection
+from database.vector_store import search as vector_search
 from sklearn.metrics.pairwise import cosine_similarity
+
+
+def retrieve(query, top_k=5):
+    """
+    Embed the query and return the top-k chunks by cosine distance.
+
+    Each row: (id, chunk, company, year, source_file, metadata, distance)
+    """
+
+    if not query or not query.strip():
+        return []
+
+    embedding_model = get_embedding_model()
+    query_embedding = embedding_model.embed_query(query)
+
+    return vector_search(query_embedding, top_k=top_k)
 
 
 def diagnose_chunks():
@@ -77,3 +94,5 @@ def diagnose_chunks():
 
 if __name__ == "__main__":
     diagnose_chunks()
+
+    

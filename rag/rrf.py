@@ -18,8 +18,7 @@ def rrf(vector_res, bm25_res, k=60):
     return scores
 
 if __name__ == '__main__':
-    query = "What were Apple's operating expenses in 2024?"
-
+    query = "What was Microsoft's operating income in fiscal year 2024?"
     vector_res = retrieve(query, top_k=5)
 
     #BM25 search

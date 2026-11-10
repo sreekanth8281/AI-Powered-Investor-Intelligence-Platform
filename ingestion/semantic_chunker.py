@@ -168,6 +168,16 @@ def split_table_rows(
     return chunks
 
 
+def make_splitter(tokenizer, chunk_size: int, chunk_overlap: int):
+    """Token-aware splitter used for prose and oversized chunks."""
+    return RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+        tokenizer,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
+
+
 def chunk_markdown(
     markdown_file: str,
     embeddings=None,
@@ -198,69 +208,64 @@ def chunk_markdown(
     blocks = split_markdown_blocks(markdown)
     print("Markdown blocks:", len(blocks))
 
-    # Build table chunks with preceding contextual blocks.
     grouped_chunks = []
-    pending_context = []
-    last_heading = None
+    heading = ""      # latest heading, attached to everything under it
+    paragraphs = []   # prose not yet written to a chunk
+
+    def flush_text():
+        """Write accumulated prose to chunks. Never discards text."""
+        nonlocal paragraphs
+
+        text = "\n\n".join(paragraphs).strip()
+        paragraphs = []
+
+        if not text:
+            return
+
+        prefix = f"{heading}\n\n" if heading else ""
+        room = max(safe_limit - count_tokens(prefix, tokenizer), 40)
+        splitter = make_splitter(tokenizer, room, chunk_overlap)
+
+        for part in splitter.split_text(text):
+            grouped_chunks.append((prefix + part).strip())
 
     for block in blocks:
         if is_heading(block):
-            last_heading = block
-            pending_context = [block]
+            flush_text()          # emit prose under the OLD heading first
+            heading = block
             continue
 
         if is_table(block):
-            context = "\n\n".join(pending_context).strip()
+            # Keep only the last paragraph as the table's lead-in.
+            lead = ""
+            if paragraphs and count_tokens(paragraphs[-1], tokenizer) <= safe_limit // 2:
+                lead = paragraphs.pop()
+            flush_text()
 
-            # Include context with the table if it fits.
-            complete = "\n\n".join(
-                part for part in [context, block] if part
-            )
+            context = "\n\n".join(p for p in [heading, lead] if p).strip()
+            complete = "\n\n".join(p for p in [context, block] if p)
 
             if count_tokens(complete, tokenizer) <= safe_limit:
                 grouped_chunks.append(complete)
             else:
-                table_chunks = split_table_rows(
-                    table=block,
-                    context=context,
-                    tokenizer=tokenizer,
-                    max_tokens=safe_limit,
+                grouped_chunks.extend(
+                    split_table_rows(
+                        table=block,
+                        context=context,
+                        tokenizer=tokenizer,
+                        max_tokens=safe_limit,
+                    )
                 )
-                grouped_chunks.extend(table_chunks)
-
-            pending_context = []
             continue
 
-        # Keep explanatory paragraphs with the current heading.
-        if pending_context:
-            pending_context.append(block)
-        else:
-            pending_context = [block]
+        paragraphs.append(block)
 
-    # Preserve remaining content that was not followed by a table.
-    if pending_context:
-        remaining = "\n\n".join(pending_context).strip()
-
-        if remaining:
-            splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-                tokenizer,
-                chunk_size=safe_limit,
-                chunk_overlap=chunk_overlap,
-                separators=["\n\n", "\n", ". ", " ", ""],
-                add_start_index=True,
-            )
-
-            grouped_chunks.extend(splitter.split_text(remaining))
+    flush_text()  # prose at the end of the document
 
     # Enforce token limits and preserve content that needs splitting.
     final_texts = []
 
-    splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-        tokenizer,
-        chunk_size=safe_limit,
-        chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", ". ", " ", ""],
-    )
+    splitter = make_splitter(tokenizer, safe_limit, chunk_overlap)
 
     for text in grouped_chunks:
         if count_tokens(text, tokenizer) <= safe_limit:
@@ -317,4 +322,3 @@ if __name__ == "__main__":
         ):
             print(f"\n{'=' * 20} CHUNK {i} {'=' * 20}")
             print(doc.page_content)
-
